@@ -144,12 +144,8 @@
         let topGainFeatures = [];
         let currentTopFeatures = [];
         let modelPrediction = null;
-        // --- CORREÇÃO 1: Variável global para armazenar todos os vizinhos ---
         let allNeighborSchools = [];
 
-        // --- Lógica para alternar entre as visualizações ---
-        // (Estas funções 'showGeneralView' e 'showSchoolSpecificView' não são usadas,
-        // mas podem ser mantidas se você planeja usá-las)
         function showGeneralView() {
             $('#general-view').show();
             $('#school-specific-view').hide();
@@ -160,13 +156,6 @@
             $('#school-specific-view').show();
         }
         
-        // --- FUNÇÃO REMOVIDA ---
-        // A função 'renderGlobalShapPlot' foi removida por ser redundante.
-        // A função 'renderSummaryShapChart' já faz este trabalho.
-        
-        // --- FUNÇÃO REMOVIDA ---
-        // A função 'loadGlobalData' foi removida por ser redundante.
-        // A função 'loadSummaryData' já faz este trabalho.
 
 
         // --- FUNÇÕES DE RENDERIZAÇÃO ---
@@ -237,7 +226,6 @@
             const verticalLinePlugin = {
                 id: 'verticalLine',
                 afterDraw: (chart) => {
-                    // ... (código existente, sem mudanças aqui)
                     if (chart.tooltip?._active?.length) return;
                     const ctx = chart.ctx;
                     const xAxis = chart.scales.x;
@@ -258,10 +246,10 @@
                 type: 'scatter',
                 data: {
                     datasets: [{
-                        // Usamos os dados com jitter aqui
+                        // dados com jitter aqui
                         data: jitteredPlotData,
-                        pointRadius: 2, // Reduzimos o raio do ponto para parecer mais denso
-                        pointHoverRadius: 4, // Ajustamos o hover radius também
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         pointBorderWidth: 0,
                         pointBackgroundColor: function(context) {
                             const normalizedValue = context.raw.normalized_value;
@@ -280,7 +268,6 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    // Certifique-se de que 'y' ainda se refira ao índice original para o nome da feature
                                     const schoolName = context.raw.school_name || 'Escola Desconhecida';
                                     const featureIndex = Math.round(context.raw.y); // Arredonda para pegar o índice da feature
                                     const featureName = data.features[featureIndex].replace(/_/g, ' ');
@@ -314,7 +301,6 @@
                 plugins: [verticalLinePlugin]
             });
             // O cálculo da altura pode precisar de ajuste, pois o jitter adiciona "espalhamento"
-            // Deixei o cálculo original, mas você pode querer um pouco mais de altura se as labels ficarem apertadas.
             $('#summary-chart-container').css('height', `${data.features.length * 40}px`);
         }
 
@@ -379,7 +365,7 @@
             container.find('input[type="range"]').on('input', handleCounterfactualChange);
         }
 
-        // --- CORREÇÃO 1: Nova função para popular o dropdown de vizinhos ---
+        // --- função para popular o dropdown de vizinhos ---
         function updateNeighborDropdown() {
             const neighborSelect = $('#neighbor-select');
             const currentSelection = neighborSelect.val(); // Salva a seleção atual, se houver
@@ -419,7 +405,7 @@
             $('#school-view-header').removeClass('hidden');
         }
 
-        // --- CORREÇÃO 2: Garantir que o gráfico global recarregue ---
+        // --- Garantir que o gráfico global recarregue ---
         function switchToSummaryView() {
             $('#summary-container').show();
             $('#initial-view-header').show();
@@ -447,14 +433,14 @@
                 modelPrediction = dashData.previsao_modelo_original;
                 topGainFeatures = gainData.map(item => item.feature);
 
-                // --- CORREÇÃO 1: Popula a lista inicial de vizinhos ---
+                // --- Popula a lista inicial de vizinhos ---
                 allNeighborSchools = [...dashData.escolas_similares];
 
                 renderSchoolDetails(dashData.detalhes_escola);
                 renderShapChart(dashData.dados_shap);
                 renderSimilarSchools(dashData.escolas_similares, 'similar-schools-list');
                 
-                // --- CORREÇÃO 1: Usa a nova função para popular o dropdown ---
+                // --- Usa a nova função para popular o dropdown ---
                 updateNeighborDropdown();
                 $('#neighbor-select').prop('disabled', false);
                 
@@ -522,7 +508,7 @@
                 const data = await response.json();
                 renderSimilarSchools(data, 'hypothetical-similar-schools-list');
                 
-                // --- CORREÇÃO 1: Adiciona novas escolas à lista global e atualiza o dropdown ---
+                // --- Adiciona novas escolas à lista global e atualiza o dropdown ---
                 const existingIds = new Set(allNeighborSchools.map(s => s.ID_ESCOLA));
                 data.forEach(newSchool => {
                     if (!existingIds.has(newSchool.ID_ESCOLA)) {
@@ -530,7 +516,6 @@
                     }
                 });
                 updateNeighborDropdown();
-                // --- FIM DA CORREÇÃO ---
 
             } catch (error) { console.error("Erro ao buscar escolas:", error); }
         }
@@ -571,8 +556,8 @@
             $('#neighbor-select').on('change', handleNeighborSelect);
             $('#find-hypothetical-button').on('click', handleFindHypotheticalSimilar);
             
-            // Estas duas linhas não parecem estar conectadas a nenhum botão no seu HTML,
-            // mas as mantenho caso você as adicione mais tarde.
+            // Estas duas linhas não parecem estar conectadas a nenhum botão no HTML,
+            // mas as mantenho caso adicione mais tarde.
             $('#show-school-analysis-btn').on('click', showSchoolSpecificView);
             $('#back-to-general-view-btn').on('click', showGeneralView);
         });

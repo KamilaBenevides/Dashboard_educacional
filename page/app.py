@@ -46,7 +46,7 @@ except Exception as e:
     print(f"Ocorreu um erro durante a inicialização: {e}")
     exit()
 
-# --- ENDPOINT DO GRÁFICO GERAL (MODIFICADO) ---
+# --- ENDPOINT DO GRÁFICO GERAL ---
 @app.route('/api/shap_summary', methods=['GET'])
 def get_shap_summary():
     try:
@@ -68,10 +68,10 @@ def get_shap_summary():
         sampled_shap = df_shap_values.loc[sample_indices]
         sampled_features = df_master_features.loc[sample_indices]
         
-        # --- MUDANÇA: Buscar os nomes das escolas amostradas ---
+        
         school_names_map = df_master.set_index('ID_ESCOLA')['NO_ENTIDADE']
         sampled_school_names = school_names_map.loc[sample_indices] # É uma Series
-        # --- FIM DA MUDANÇA ---
+        
 
         top_features.reverse()
 
@@ -83,7 +83,7 @@ def get_shap_summary():
             min_val, max_val = feature_vals_series.min(), feature_vals_series.max()
             normalized_vals_series = (feature_vals_series - min_val) / (max_val - min_val) if max_val > min_val else pd.Series(0, index=feature_vals_series.index)
 
-            # --- MUDANÇA: Iterar sobre o índice (ID_ESCOLA) para pegar o nome ---
+            
             for school_id in shap_vals_series.index:
                 shap_val = shap_vals_series.loc[school_id]
                 norm_val = normalized_vals_series.loc[school_id]
@@ -93,9 +93,9 @@ def get_shap_summary():
                     "x": shap_val,
                     "y": i, 
                     "normalized_value": norm_val,
-                    "school_name": school_name # <-- ADICIONADO
+                    "school_name": school_name
                 })
-            # --- FIM DA MUDANÇA ---
+
 
         return jsonify({
             "features": top_features,
