@@ -12,130 +12,226 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .select2-container .select2-selection--single { height: 42px; border-radius: 0.5rem; border: 1px solid #d1d5db; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 42px; padding-left: 1rem; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 42px; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .slider-marker { position: absolute; top: 50%; transform: translateY(-50%); width: 4px; height: 16px; border-radius: 2px; z-index: 1; }
-        .select2-dropdown { z-index: 9999; }
+        html, body { 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        /* Classe única para nomes de variáveis em todo o sistema */
+        .label-variable {
+            font-size: 10px;
+            font-weight: 700;
+            color: #9ca3af; /* Equivalente ao text-gray-400 */
+            text-transform: uppercase;
+            letter-spacing: 0.1em; /* tracking-widest */
+            line-height: 1.2;
+        }
+        .label-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #5f626b; /* Equivalente ao text-gray-400 */
+            text-transform: uppercase;
+        }
+        :root {
+            --cor-foco: #01665e;
+            --cor-bench: #8c510a;
+            --cor-vermelha: #67001f;    
+            --cor-azul: #053061;
+        }
+        /* Layout Principal e Containers */
+        .lg\:col-span-4 { 
+            display: flex; 
+            flex-direction: column; 
+            height: calc(100vh - 4rem); /* Altura total menos os paddings do container */
+        }
+        #summary-view, #dashboard-view {
+            flex: 1;            /* Ocupa todo o espaço disponível */
+            overflow-y: auto;   /* Se o conteúdo for grande, cria scroll apenas aqui */
+            min-height: 0;      /* Importante: permite que o flex-item diminua se necessário */
+        }
+
+        /* Sidebar e Cards Laterais */
+        .sidebar-sticky-wrapper { height: calc(100vh - 4rem); display: flex; flex-direction: column; gap: 1.5rem; position: sticky; top: 1rem; }
+        .half-height-card { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+        .scrollable-table-container { flex: 1; overflow-y: auto; padding-right: 8px; margin-top: 0.5rem; }
+        
+        .slider-marker { 
+            position: absolute; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            width: 4px; 
+            height: 16px; 
+            border-radius: 2px; 
+            z-index: 1; 
+        }
+
+        /* Dock Inferior */
+        #dashboard-footer-dock {
+            bottom: 0;
+            width: 100%;
+            z-index: 40;
+            margin-top: auto;
+            padding-top: 1.5rem;
+            background: transparent;
+            pointer-events: none; 
+            flex-shrink: 0;
+        }
+        #dashboard-footer-dock > div { pointer-events: auto; box-shadow: 0 -15px 30px -5px rgba(0, 0, 0, 0.08); backdrop-filter: blur(4px); }
+        
+        .shap-legend {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            margin-bottom: 0px; /* Estava 10px, mude para 0 */
+            padding-bottom: 5px; /* Um respiro mínimo apenas para não encostar na linha */
+        }
+
+        .legend-bar {
+            width: 120px;
+            height: 8px;
+            border-radius: 4px;
+            margin-bottom: 0px; /* Estava 10px, mude para 0 */
+            /* Gradiente: Vermelho (Baixo) para Azul (Alto) como você pediu */
+            background: linear-gradient(to right, var(--cor-vermelha), var(--cor-azul));
+        }
+
+        .legend-labels {
+            width: 120px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            font-weight: 800;
+            color: #9ca3af;
+            margin-bottom: 0px; /* Estava 10px, mude para 0 */
+            text-transform: uppercase;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body class="bg-gray-100 text-gray-800">
     <div class="max-w-full container mx-auto p-4 md:p-8">
-        <header class="bg-white p-6 rounded-xl shadow-md mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">Dashboard de Análise Preditiva Escolar</h1>
+        <div class="grid grid-cols-1 lg:grid-cols-6 gap-8">
             
-            <!-- Conteúdo do cabeçalho que muda dinamicamente -->
-            <div id="initial-view-header">
-                <p class="text-gray-600 mt-1">Visão geral do impacto de cada variável nas notas de todas as escolas.</p>
-            </div>
-            <div id="school-view-header" class="hidden">
-                 <p class="text-gray-600 mt-1">Selecione uma escola para visualizar as análises de desempenho e similaridade.</p>
-                <div class="mt-4">
-                    <select id="school-select" class="w-full"></select>
+            <div class="lg:col-span-4">                
+                <div id="summary-view" class="flex-grow bg-white p-6 rounded-xl shadow-md">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="label-title">Visão Global de Impacto de Variável</h2>
+                        <div class="shap-legend">
+                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Valor da Variável</span>
+                            <div class="legend-bar"></div>
+                            <div class="legend-labels"><span>Baixo</span><span>Alto</span></div>
+                        </div>
+                    </div>
+                    <div id="summary-chart-container" class="relative" style="min-height: 400px;">
+                        <div id="summary-loader" class="loader mx-auto my-8" style="display:none;"></div>
+                        <canvas id="summaryShapChart"></canvas>
+                    </div>
                 </div>
-            </div>
-        </header>
 
-        <!-- Container para o gráfico de resumo inicial -->
-        <div id="summary-container" class="bg-white p-6 rounded-xl shadow-md">
-            <div class="flex justify-between items-center mb-4">
-                <div>
-                    <h2 class="text-2xl font-bold">Análise Geral de Contribuição (SHAP)</h2>
-                    <p class="text-sm text-gray-500 mt-1">Impacto de cada variável no resultado do modelo para todas as escolas.</p>
+
+                <div id="dashboard-view" class="hidden flex-grow flex flex-col">
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch flex-grow">
+                        
+                        <div class="bg-white p-8 rounded-xl shadow-md border-l-8 flex flex-col h-full" style="border-color: var(--cor-foco);">
+                            <div class="mb-6">
+                                <h2 class="label-title">Predição de Impacto</h2>
+                                <p class="text-sm text-gray-500">Ajuste os indicadores para ver a nova predição do modelo.</p>
+                            </div>
+
+                            <div id="counterfactual-container" class="space-y-4 overflow-y-auto pr-4 flex-grow" style="max-height: 50vh;">
+                                </div>
+                            
+                            <div class="mt-auto pt-6 border-t border-gray-100">
+                                <div class="bg-gray-900 text-white p-6 rounded-2xl shadow-xl">
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-widest" style="color: var(--cor-foco);">Nova Predição</p>
+                                            <p id="counterfactual-score" class="text-5xl font-black transition-all duration-300" style="color: var(--cor-foco);">--</p>
+                                        </div>
+                                        <div class="text-right border-l border-gray-700 pl-6">
+                                            <p class="text-[10px] font-bold text-gray-500 uppercase">Predição Original</p>
+                                            <p id="model-prediction-score" class="text-xl font-bold text-gray-300">--</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col flex-grow bg-white p-8 rounded-xl shadow-md border-l-8" style="border-color: var(--cor-bench);">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="label-title">📍 Benchmarking Similares</h3>
+                                <span class="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Busca Ativa</span>
+                            </div>
+                            <div id="hypothetical-similar-schools-list" class="overflow-y-auto pr-2 flex-grow" style="max-height: 65vh;">
+                                </div>
+                        </div>
+
+                    </div>
                 </div>
-                <button id="select-school-btn" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg">Analisar Escola Específica</button>
+
+                <div id="dashboard-footer-dock" class="flex gap-4 items-stretch h-[150px]">
+                    <div id="current-school-card-container" class="w-[40%] bg-white border-2 border-gray-200 rounded-2xl shadow-xl p-4 overflow-hidden">
+                        <div class="flex items-center justify-center h-full text-gray-400 text-[10px] uppercase font-bold text-center px-4">
+                            Selecione uma unidade para analisar
+                        </div>
+                    </div>
+
+                    <div id="dynamic-middle-card" class="w-[40%] bg-white border-2 border-gray-200 rounded-2xl shadow-xl p-4 flex flex-col justify-center overflow-hidden">
+                        <div id="dock-selector-container">
+                            <p class="text-[9px] font-black text-gray-400 uppercase mb-2 tracking-widest text-center">Selecionar Unidade Escolar</p>
+                            <select id="school-select" class="w-full"></select>
+                        </div>
+                        <div id="compared-school-card-content" class="hidden h-full">
+                            </div>
+                    </div>
+
+                    <div id="dock-nav-card" class="w-[20%] bg-gray-900 rounded-2xl shadow-xl p-4 flex flex-col justify-center items-center text-center cursor-pointer hover:bg-black transition-all" onclick="handleDockNavClick()">
+                        <div id="nav-icon" class="text-white mb-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </div>
+                        <p id="nav-text-top" class="text-[9px] font-black text-white uppercase tracking-tighter">Ir Para</p>
+                        <p id="nav-text-main" class="text-[11px] font-bold text-white uppercase leading-none">Comparação</p>
+                    </div>
+                </div>
             </div>
-            <p class="text-sm text-gray-500 mb-4 bg-gray-50 p-3 rounded-md">
-                Cada ponto representa uma escola. O eixo horizontal mostra como a variável impacta a nota (positivo = aumenta, negativo = diminui). A <span class="font-bold text-red-500">cor vermelha</span> indica um valor alto para a variável naquela escola, enquanto a <span class="font-bold text-blue-500">cor azul</span> indica um valor baixo.
-            </p>
-            <div id="summary-chart-container" class="relative">
-                <div id="summary-loader" class="loader mx-auto my-8"></div>
-                <canvas id="summaryShapChart"></canvas>
+
+            <select id="neighbor-select" class="hidden"></select>
+
+            <div class="lg:col-span-2">
+                <div class="sidebar-sticky-wrapper">
+                    
+                    <div id="unified-control-card" class="bg-white p-5 rounded-xl shadow-md border-t-4 half-height-card">
+                        <h3 id="school-card-title" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">
+                            Variáveis da Unidade em Foco
+                        </h3>
+                        <div id="school-details-content" class="h-full flex flex-col justify-center text-gray-400">
+                            <p class="text-xs text-center px-6">Selecione uma unidade no dock inferior para detalhar as Variáveis.</p>
+                        </div>
+                    </div>
+
+                    <div id="comparison-card" class="bg-white p-6 rounded-xl shadow-md border-t-4 half-height-card">
+                        <h3 id="comparison-card-title" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">
+                            Impacto dos Atributos (SHAP) da Unidade em Foco
+                        </h3>
+                        <div id="sidebar-comparison-container" class="scrollable-table-container text-sm justify-center text-gray-400">
+                            <p class="text-xs text-center px-6">Selecione uma unidade no dock inferior para analisar o impacto dos atributos.</p>
+                        </div>
+                    </div>
+                    
+                </div>
             </div>
         </div>
-
-        <!-- Container principal do dashboard (inicialmente oculto) -->
-        <main id="dashboard-container" class="hidden space-y-8 mt-8">
-            <div class="text-right mb-0">
-                <button id="back-to-summary-btn" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">← Voltar para Visão Geral</button>
-            </div>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">Detalhes da Escola Selecionada</h2>
-                    <div id="school-details-content"></div>
-                </div>
-                <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">Análise de Contribuição (SHAP)</h2>
-                    <p class="text-sm text-gray-500 mb-2">O que mais influencia a nota desta escola? Valores positivos aumentam a nota, negativos diminuem.</p>
-                    <canvas id="shapChart"></canvas>
-                </div>
-            </div>
-
-            <!-- O resto do seu dashboard continua aqui... -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">Escolas Similares (Vizinhança)</h2>
-                    <div id="similar-schools-list"></div>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">Tabela Comparativa SHAP</h2>
-                    <div id="comparison-table-container" class="overflow-x-auto"></div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-2xl font-bold">Análise Contrafactual (Simulador)</h2>
-                        <div id="counterfactual-legend" class="hidden text-sm space-x-4">
-                            <span><span class="inline-block w-3 h-3 bg-blue-500 rounded-sm mr-1"></span>Valor Inicial</span>
-                            <span><span class="inline-block w-3 h-3 bg-orange-500 rounded-sm mr-1"></span>Valor Comparado</span>
-                        </div>
-                    </div>
-
-                    <div class="mb-4 space-y-3">
-                        <div>
-                            <p class="block text-sm font-medium text-gray-700 mb-2">Exibindo variáveis com as <span class="font-bold text-green-600">Maiores Oportunidades de Ganho</span>.</p>
-                        </div>
-                        <div>
-                             <label for="neighbor-select" class="block text-sm font-medium text-gray-700 mb-2">Comparar com Vizinho:</label>
-                            <select id="neighbor-select" class="w-full p-2 border border-gray-300 rounded-md" disabled><option>Selecione um vizinho para comparar</option></select>
-                        </div>
-                    </div>
-
-                    <div id="counterfactual-container" class="mt-4 hidden grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8"></div>
-                    
-                    <div class="mt-6 bg-gray-50 p-6 rounded-lg">
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center items-center">
-                            <div><p class="text-sm font-medium text-gray-500">Média Original</p><p id="original-score" class="text-2xl font-bold text-gray-800">--</p></div>
-                            <div><p class="text-sm font-medium text-gray-500">Previsão Modelo</p><p id="model-prediction-score" class="text-2xl font-bold text-gray-800">--</p></div>
-                            <div id="comparison-score-container" class="hidden"><p class="text-sm font-medium text-gray-500">Média Vizinho</p><p id="comparison-score" class="text-2xl font-bold text-orange-600">--</p></div>
-                            <div><p class="text-sm font-medium text-gray-500">Média SIMULADA</p><p id="counterfactual-score" class="text-4xl font-bold text-green-600">--</p></div>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 text-center">
-                        <button id="find-hypothetical-button" class="bg-green-600 hover:bg-green-800 text-white font-bold py-3 px-6 rounded-lg disabled:bg-gray-400" disabled>Buscar escolas com perfil similar</button>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                     <div id="hypothetical-similar-schools-container" class="hidden h-full">
-                        <h3 class="text-xl font-bold mb-4">Escolas Reais com Perfil Similar à Simulação</h3>
-                        <div id="hypothetical-similar-schools-list"></div>
-                    </div>
-                </div>
-            </div>
-        </main>
     </div>
 
     <script>
+        let currentShapData = null; // Nova variável global
         const API_BASE_URL = 'http://127.0.0.1:5000';
+        const ESCOLA_CORES = ['#67001f','#b2182b','#d6604d','#f4a582','#fddbc7','#f7f7f7','#d1e5f0','#92c5de','#4393c3','#2166ac','#053061'];
+
+        // Atalhos para facilitar a leitura do seu código:
+        const COR_VERMELHA = ESCOLA_CORES[2]; // Vermelho para alertas/oportunidades
+        const COR_AZUL = ESCOLA_CORES[8];     // Azul para impactos positivos
         let shapChartInstance = null;
         let globalShapChartInstance = null;
         let selectedSchoolId = null;
@@ -146,6 +242,25 @@
         let modelPrediction = null;
         let allNeighborSchools = [];
 
+        // ... suas outras constantes ...
+        let labelsTraducao = {}; // Global para armazenar o dicionário
+
+        async function carregarDicionario() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/labels_traducao`);
+                labelsTraducao = await response.json();
+                console.log("Dicionário carregado com sucesso!");
+            } catch (error) {
+                console.error("Erro ao carregar dicionário de labels:", error);
+            }
+        }
+
+        // Função auxiliar para traduzir ou formatar (fallback)
+        function formatLabel(featureName) {
+            // Se existir no dicionário, usa. Se não, limpa o snake_case.
+            return labelsTraducao[featureName] || featureName.replace(/_/g, ' ');
+        }
+
         function showGeneralView() {
             $('#general-view').show();
             $('#school-specific-view').hide();
@@ -155,13 +270,115 @@
             $('#general-view').hide();
             $('#school-specific-view').show();
         }
+
+        function renderCurrentSchoolCard(details) {
+            const container = $('#current-school-card-container');
+            container.removeClass('border-gray-200').addClass('border-[var(--cor-foco)]');
+            container.html(`
+                <div class="flex flex-col justify-between h-full animate-in fade-in duration-500">
+                    <div class="flex justify-between items-start">
+                        <span class="bg-[var(--cor-foco)] text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Unidade em Foco</span>
+                        <span class="text-xl font-black text-[var(--cor-foco)]">${(details.MEDIA_FINAL || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="mt-auto">
+                        <p class="font-black text-gray-800 text-sm truncate uppercase tracking-tighter">${details.NO_ENTIDADE}</p>
+                        <p class="text-[10px] text-gray-400 font-medium">INEP: ${details.ID_ESCOLA} • ${details.NO_MUNICIPIO}</p>
+                    </div>
+                </div>
+            `);
+        }
+
+        function renderComparedSchoolCard(details) {
+            const container = $('#compared-school-card-content');
+            
+            container.html(`
+                <div class="flex flex-col justify-between h-full animate-in fade-in slide-in-from-right-4 duration-500">
+                    <div class="flex justify-between items-start">
+                        <span class="bg-[var(--cor-bench)] text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Referência de Benchmarking</span>
+                        <span class="text-xl font-black text-[var(--cor-bench)]">${(details.MEDIA_FINAL || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="mt-auto">
+                        <p class="font-black text-gray-800 text-sm truncate uppercase tracking-tighter">${details.NO_ENTIDADE}</p>
+                        <p class="text-[10px] text-[var(--cor-bench)] font-medium">INEP: ${details.ID_ESCOLA} • ${details.NO_MUNICIPIO}</p>
+                    </div>
+                </div>
+            `);
+        }
         
+        function renderSchoolDetails(details, isComparison = false) {
+            schoolDetails = details; 
 
+            const container = $('#school-details-content');
+            const titleElement = $('#school-card-title');
 
-        // --- FUNÇÕES DE RENDERIZAÇÃO ---
-        function renderSchoolDetails(details) {
-            schoolDetails = details;
-            $('#school-details-content').html(`<p><strong>Nome:</strong> ${details.NO_ENTIDADE || 'N/D'}</p><p><strong>ID:</strong> ${details.ID_ESCOLA}</p><p><strong>Município:</strong> ${details.NO_MUNICIPIO || 'N/D'} - ${details.SG_UF || 'N/D'}</p><h3 class="text-xl font-semibold mt-4">Média Final Atual: <span class="text-blue-600">${(details.MEDIA_FINAL || 0).toFixed(2)}</span></h3>`);
+            // 2. Atualiza o título que já existe no HTML
+            titleElement.text(isComparison ? 
+                "Comparação Variável: Foco vs Benchmarking" : 
+                "Variáveis da Unidade em Foco"
+            );
+
+            // 3. Remove estados de erro/placeholder
+            $('#no-school-selected').hide();
+            container.removeClass('justify-center text-gray-400');
+
+            const formatValue = (val) => {
+                if (val === null || val === undefined) return '--';
+                if (val === 0 || val === 1) return val === 1 ? 'Sim' : 'Não';
+                return (val * 100).toFixed(0) + '%';
+            };
+
+            if (!currentShapData || currentShapData.length === 0) {
+                container.html('<p class="text-center py-10">Carregando dados SHAP...</p>');
+                return;
+            }
+
+            const sortedFeatures = [...currentShapData]
+                .sort((a, b) => Math.abs(b.shap_value) - Math.abs(a.shap_value))
+                .slice(0, 15); // Pegamos as 15 mais impactantes
+
+            let tableHtml = `
+                <div class="scrollable-table-container">
+                    <table class="w-full text-left border-separate border-spacing-y-2">
+                        <thead>
+                            <tr class="text-[9px] text-gray-400 uppercase">
+                                <th class="pb-1">Variável</th>
+                                <th class="pb-1 text-center">${isComparison ? 'Foco' : 'Valor'}</th>
+                                ${isComparison ? '<th class="pb-1 text-center">Bench.</th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tableHtml += sortedFeatures.map(item => {
+                const feature = item.feature;
+                const val1 = details[feature];
+                const val2 = isComparison && comparisonSchoolDetails ? comparisonSchoolDetails[feature] : null;
+                
+                return `
+                    <tr class="align-middle">
+                        <td class="label-variable pr-2">
+                            ${formatLabel(feature).toUpperCase()}
+                        </td>
+                        <td class="text-center">
+                            <span class="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-mono font-bold text-gray-700">
+                                ${formatValue(val1)}
+                            </span>
+                        </td>
+                        ${isComparison ? `
+                        <td class="text-center">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold" style="background-color: #fffdfa; color: var(--cor-bench);">
+                                ${formatValue(val2)}
+                            </span>
+                        </td>
+                        ` : ''}
+                    </tr>
+                `;
+            }).join('');
+
+            tableHtml += `</tbody></table></div>`;
+
+            // Injeta a tabela no container
+            container.html(tableHtml);
         }
         
         function renderShapChart(shapData) {
@@ -172,7 +389,7 @@
             const topShapData = sortedByAbsolute.slice(0, 15).reverse();
             
             const labels = topShapData.map(d => {
-                const featureName = d.feature.replace(/_/g, ' ');
+                const featureName = formatLabel(d.feature);
                 const featureValue = d.feature_value;
 
                 if (featureValue === null || typeof featureValue === 'undefined') {
@@ -197,10 +414,11 @@
                     labels, 
                     datasets: [{ 
                         data: values, 
-                        backgroundColor: values.map(v => v > 0 ? 'rgba(54, 162, 235, 0.6)' : 'rgba(255, 99, 132, 0.6)') 
-                    }] 
+                        backgroundColor: values.map(v => v > 0 ? COR_AZUL : COR_VERMELHA) 
+                    }]
                 }, 
                 options: { 
+                    animation: false,
                     indexAxis: 'y', 
                     responsive: true, 
                     plugins: { legend: { display: false } }, 
@@ -213,155 +431,284 @@
             const ctx = document.getElementById('summaryShapChart').getContext('2d');
             if (globalShapChartInstance) globalShapChartInstance.destroy();
 
-            // Adiciona jitter aos pontos do eixo Y para melhor visualização da densidade
-            const jitteredPlotData = data.plot_data.map(p => ({
-                x: p.x,
-                // Adiciona um pequeno valor aleatório para distribuir os pontos verticalmente
-                // O fator 0.4 controla a "largura" do jitter. Ajuste se necessário.
-                y: p.y + (Math.random() - 0.5) * 0.8, // y + valor_aleatorio_entre(-0.4, 0.4)
-                normalized_value: p.normalized_value,
-                school_name: p.school_name
-            }));
+            // 1. CÁLCULO DE ESPAÇO DISPONÍVEL
+            const availableHeight = window.innerHeight; 
+            const rowHeight = 50; // Altura ideal por linha
+            const maxVisibleRows = Math.floor(availableHeight / rowHeight);
 
-            const verticalLinePlugin = {
-                id: 'verticalLine',
-                afterDraw: (chart) => {
-                    if (chart.tooltip?._active?.length) return;
-                    const ctx = chart.ctx;
-                    const xAxis = chart.scales.x;
-                    const yAxis = chart.scales.y;
-                    const x = xAxis.getPixelForValue(0);
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.moveTo(x, yAxis.top);
-                    ctx.lineTo(x, yAxis.bottom);
-                    ctx.lineWidth = 1;
-                    ctx.strokeStyle = '#999';
-                    ctx.stroke();
-                    ctx.restore();
-                }
-            };
+            // 2. CORTE DAS VARIÁVEIS (Pega apenas as N mais importantes)
+            const displayFeatures = data.features.slice(0, maxVisibleRows);
+            const displayPlotData = data.plot_data.filter(p => p.y < maxVisibleRows);
+
+            // Ajusta o container para o tamanho exato calculado
+            $('#summary-chart-container').css('height', `${displayFeatures.length * rowHeight}px`);
+
+            // 2. DADOS COM METADADOS: Essencial para o Clique e para as Cores
+            const pointsWithMetadata = data.plot_data.map(p => ({
+                x: p.x,
+                y: p.y + (Math.random() - 0.5) * 0.6, // Jitter controlado
+                normalized_value: p.normalized_value,
+                school_name: p.school_name,
+                school_id: p.school_id
+            }));
 
             globalShapChartInstance = new Chart(ctx, {
                 type: 'scatter',
                 data: {
+                    rawPlotData: data.plot_data,
                     datasets: [{
-                        // dados com jitter aqui
-                        data: jitteredPlotData,
-                        pointRadius: 2,
-                        pointHoverRadius: 4,
+                        data: pointsWithMetadata,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
                         pointBorderWidth: 0,
+                        // RESTAURAÇÃO DAS CORES: Mapeia o gradiente ESCOLA_CORES
                         pointBackgroundColor: function(context) {
-                            const normalizedValue = context.raw.normalized_value;
-                            if (normalizedValue === undefined) return 'rgba(150, 150, 150, 0.7)';
-                            const r = 255 * normalizedValue;
-                            const b = 255 * (1 - normalizedValue);
-                            return `rgba(${Math.round(r)}, 99, ${Math.round(b)}, 0.7)`;
+                            const val = context.raw ? context.raw.normalized_value : 0;
+                            // Mapeia o valor 0-1 para os índices do array de cores (0-10)
+                            const colorIdx = Math.round(val * (ESCOLA_CORES.length - 1));
+                            return ESCOLA_CORES[colorIdx] || '#969696';
                         }
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false,
+                    layout: {
+                        padding: { 
+                            left: 10, 
+                            right: 10, 
+                            top: 0,    // Mude de 10 para 0
+                            bottom: 0 
+                        }
+                    },
+                    // RESTAURAÇÃO DO CLIQUE: Seleciona a escola no dock ao clicar no ponto
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const dataIndex = elements[0].index;
+                            const schoolId = pointsWithMetadata[dataIndex].school_id;
+                            if (schoolId) {
+                                $('#school-select').val(schoolId).trigger('change');
+                                highlightSchoolInSwarm(schoolId); // Mantém o destaque visual
+                            }
+                        }
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: function(context) {
-                                    const schoolName = context.raw.school_name || 'Escola Desconhecida';
-                                    const featureIndex = Math.round(context.raw.y); // Arredonda para pegar o índice da feature
-                                    const featureName = data.features[featureIndex].replace(/_/g, ' ');
-                                    const shapValue = context.raw.x.toFixed(4);
+                                label: (ctx) => {
+                                    const fName = formatLabel(data.features[Math.round(ctx.raw.y)]).toUpperCase();
                                     return [
-                                        `Escola: ${schoolName}`,
-                                        `Variável: ${featureName}`,
-                                        `Impacto (SHAP): ${shapValue}`
+                                        `Escola: ${ctx.raw.school_name}`,
+                                        `Variável: ${fName}`,
+                                        `Impacto (SHAP): ${ctx.raw.x.toFixed(3)}`
                                     ];
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: { title: { display: true, text: 'Impacto na nota da escola (Valor SHAP)' }, grid: { color: '#eee' } },
-                        y: { 
-                            ticks: { 
-                                stepSize: 1, 
-                                callback: (value) => {
-                                    // Garante que o rótulo seja exibido apenas em valores inteiros para o nome da feature
-                                    if (Number.isInteger(value)) {
-                                        return data.features[value] ? data.features[value].replace(/_/g, ' ') : '';
+                        x: {
+                            grace: '3%', // Preenche as laterais
+                            title: { 
+                                display: true, 
+                                text: 'IMPACTO NA NOTA (VALOR SHAP)', 
+                                color: '#9ca3af', 
+                                font: { size: 10, weight: 700 } 
+                            },
+                            ticks: { color: '#9ca3af', font: { size: 10 } },
+                            grid: { color: '#f3f4f6' }
+                        },
+                        y: {
+                            type: 'linear',
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                autoSkip: false,
+                                color: '#9ca3af',
+                                padding: 15,
+                                // ESTILO "PREDIÇÃO DE IMPACTO": Uppercase, Bold, Small
+                                font: { family: "'Inter', sans-serif", size: 10, weight: 700 },
+                                callback: function(value) {
+                                    if (value >= 0 && value < data.features.length && value % 1 === 0) {
+                                        return formatLabel(data.features[value]).toUpperCase();
                                     }
-                                    return ''; // Não exibe rótulo para valores não inteiros
+                                    return '';
                                 }
                             },
-                            grid: { display: false } 
+                            grid: { color: '#f3f4f6', drawTicks: false }
                         }
                     }
-                },
-                plugins: [verticalLinePlugin]
+                }
             });
-            // O cálculo da altura pode precisar de ajuste, pois o jitter adiciona "espalhamento"
-            $('#summary-chart-container').css('height', `${data.features.length * 40}px`);
         }
 
         function renderSimilarSchools(schools, containerId) {
-            const container = $(`#${containerId}`); container.empty();
-            if (schools.length === 0) { container.html('<p class="text-gray-500">Nenhuma escola encontrada.</p>'); return; }
+            const container = $(`#${containerId}`);
+            if (!container.length) return;
+            container.empty();
             
-            const list = schools.map(school => {
-                let detailsHtml = '';
-                if (containerId === 'hypothetical-similar-schools-list') {
-                    let featuresListHtml = currentTopFeatures.map(feature => {
-                        const value = school[feature] || 0;
-                        const isBinary = value === 0 || value === 1;
-                        const displayValue = isBinary ? value : `${(value * 100).toFixed(0)}%`;
-                        const featureNameClean = feature.replace(/_/g, ' ');
-                        return `<div class="truncate" title="${featureNameClean}"><span class="font-medium">${featureNameClean}:</span> ${displayValue}</div>`;
-                    }).join('');
-                    detailsHtml = `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-xs font-bold text-gray-700 mb-1">Características principais:</p><div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">${featuresListHtml}</div></div>`;
-                }
+            if (!schools || schools.length === 0) {
+                container.html('<p class="text-gray-400 italic text-center py-20">Ajuste os sliders para encontrar escolas.</p>');
+                return;
+            }
 
-                const actionHtml = containerId === 'similar-schools-list' 
-                    ? `<button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex-shrink-0" onclick="handleCompareClick(${school.ID_ESCOLA})">Comparar</button>`
-                    : `<div class="text-sm text-gray-500 text-right flex-shrink-0">${school.NO_MUNICIPIO || ''} - ${school.SG_UF || ''}</div>`;
+            const html = schools.map(school => `
+                <div id="card-${school.ID_ESCOLA}" 
+                    class="p-4 bg-white border border-gray-100 rounded-xl transition-all duration-300 cursor-pointer group hover:border-gray-300">
+                    <div class="flex justify-between items-center">
+                        <div class="max-w-[65%]">
+                            <p class="font-bold text-gray-800 truncate text-sm">${school.NO_ENTIDADE}</p>
+                            <p class="text-[10px] text-gray-400">INEP: ${school.ID_ESCOLA}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-black text-[var(--cor-bench)] leading-none">${(school.MEDIA_FINAL || 0).toFixed(2)}</p>
+                            <p class="text-[9px] font-bold text-[var(--cor-foco)] uppercase mt-1">
+                                ${school.distance ? (100 - school.distance).toFixed(1) : '--'}% similar
+                            </p>
+                        </div>
+                    </div>
+                    <button onclick="handleCompareClick(${school.ID_ESCOLA})" 
+                            class="mt-3 w-full py-2 bg-gray-50 hover:bg-gray-800 hover:text-white text-[9px] font-black uppercase text-gray-500 rounded-lg transition-all">
+                        Selecionar para Comparar
+                    </button>
+                </div>
+            `).join('');
 
-                let infoLine = `<p class="text-sm text-gray-500">Média: ${(school.MEDIA_FINAL || 0).toFixed(2)} | ID: ${school.ID_ESCOLA}</p>`;
-                if (school.distance !== undefined) {
-                    infoLine = `<p class="text-sm text-gray-500">Média: ${(school.MEDIA_FINAL || 0).toFixed(2)} | <span class="font-semibold text-indigo-600">Dissimilaridade: ${school.distance.toFixed(2)}%</span> | ID: ${school.ID_ESCOLA}</p>`;
-                }
-
-                return `<div class="p-3 border rounded-lg mb-2"><div class="flex justify-between items-start"><div class="flex-grow pr-4"><p class="font-semibold">${school.NO_ENTIDADE || 'N/D'}</p>${infoLine}</div>${actionHtml}</div>${detailsHtml}</div>`;
-            }).join('');
-            container.html(list);
+            container.html(html);
         }
 
-        function renderComparisonTable(comparisonData) {
-            const container = $('#comparison-table-container'); container.empty();
-            let table = `<table class="min-w-full divide-y divide-gray-200 text-sm"><thead class="bg-gray-50"><tr><th class="px-2 py-2 text-left font-medium text-gray-500">Variável</th><th class="px-2 py-2 text-left font-medium text-gray-500">Sua Escola</th><th class="px-2 py-2 text-left font-medium text-gray-500">Vizinho</th><th class="px-2 py-2 text-left font-medium text-gray-500">Diferença</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
-            comparisonData.sort((a,b) => Math.abs(b.diferenca) - Math.abs(a.diferenca));
-            comparisonData.slice(0,10).forEach(row => { table += `<tr><td class="px-2 py-1">${row.feature.replace(/_/g, ' ')}</td><td class="px-2 py-1">${row.shap_escola_1.toFixed(3)}</td><td class="px-2 py-1">${row.shap_escola_2.toFixed(3)}</td><td class="px-2 py-1 font-semibold ${row.diferenca > 0 ? 'text-green-600' : 'text-red-600'}">${row.diferenca.toFixed(3)}</td></tr>`; });
-            table += `</tbody></table>`; container.html(table);
+        function renderShapCard(data, isComparison = false) {
+            const container = $('#sidebar-comparison-container');
+            const title = $('#comparison-card-title');
+            
+            // FORÇA O CARD A APARECER
+            $('#comparison-card').removeClass('hidden').fadeIn();
+
+            if (!data || data.length === 0) {
+                container.html('<p class="text-gray-400 text-center py-4">Carregando impactos...</p>');
+                return;
+            }
+
+            let sortedData;
+            if (isComparison) {
+                title.text("Comparação Importancia (SHAP): Foco vs Benchmarking");
+                // Ordena da maior diferença positiva para a menor (negativa)
+                sortedData = [...data].sort((a, b) => (b.diferenca || 0) - (a.diferenca || 0));
+            } else {
+                title.text("Impacto dos Atributos (SHAP) da Unidade em Foco");
+                // Ordena pelo valor absoluto do SHAP da escola selecionada
+                sortedData = [...data].sort((a, b) => Math.abs(b.shap_value || 0) - Math.abs(a.shap_value || 0));
+            }
+
+            // Função auxiliar para gerar a mini-barra com lógica de cor intrínseca
+            const getBar = (val, maxVal) => {
+                const value = val || 0;
+                const width = Math.min(Math.abs((value / maxVal) * 100), 100);
+                const direction = value >= 0 ? 'justify-start' : 'justify-end';
+                // Lógica: Positivo = Azul | Negativo = Vermelho
+                const color = value >= 0 ? COR_AZUL : COR_VERMELHA;
+
+                return `
+                    <div class="relative w-16 h-2 bg-gray-100 rounded-full overflow-hidden flex ${direction}">
+                        <div class="h-full" style="width: ${width}%; background-color: ${color};"></div>
+                    </div>
+                `;
+            };
+
+            // Encontra o valor máximo para escala das barras considerando todas as colunas visíveis
+            const allVisibleValues = sortedData.flatMap(d => 
+                isComparison ? [d.shap_escola_1, d.shap_escola_2, d.diferenca] : [d.shap_value]
+            );
+            const maxAbs = Math.max(...allVisibleValues.map(v => Math.abs(v || 0)), 0.1);
+
+            let html = `
+                <table class="w-full text-left border-separate border-spacing-y-2">
+                    <thead>
+                        <tr class="text-[10px] text-gray-400 uppercase">
+                            <th class="pb-2">Variável</th>
+                            <th class="pb-2 text-center">${isComparison ? 'Foco' : 'Valor'}</th>
+                            ${isComparison ? '<th class="pb-2 text-center">Benchmarking</th>' : ''}
+                            <th class="pb-2 text-right">Impacto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sortedData.slice(0, 15).forEach(row => {
+                const valFinal = isComparison ? (row.diferenca || 0) : (row.shap_value || 0);
+                const colorFinal = valFinal >= 0 ? COR_AZUL : COR_VERMELHA;
+                
+                html += `
+                    <tr class="align-middle">
+                        <td class="label-variable py-1 pr-2 max-w-[180px] truncate" title="${formatLabel(row.feature)}">
+                            ${formatLabel(row.feature)}
+                        </td>                        
+                        ${isComparison ? `
+                            <td class="text-center">${getBar(row.shap_escola_1, maxAbs)}</td>
+                            <td class="text-center">${getBar(row.shap_escola_2, maxAbs)}</td>
+                        ` : `
+                            <td class="text-center font-mono text-gray-400">
+                                ${row.feature_value !== undefined ? (row.feature_value % 1 === 0 ? row.feature_value : (row.feature_value * 100).toFixed(0) + '%') : '--'}
+                            </td>
+                        `}
+
+                        <td class="flex items-center justify-end gap-2 py-1">
+                            <span class="font-bold min-w-[45px] text-right text-[11px]" style="color: ${colorFinal}">
+                                ${valFinal > 0 ? '+' : ''}${valFinal.toFixed(2)}
+                            </span>
+                            ${getBar(valFinal, maxAbs)}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.html(html);
         }
         
         function renderCounterfactualControls(featuresToShow) {
             currentTopFeatures = featuresToShow;
-            const container = $('#counterfactual-container'); container.empty().show();
-            $('#counterfactual-legend').removeClass('hidden');
-            $('#original-score').text((schoolDetails.MEDIA_FINAL || 0).toFixed(2));
-            $('#model-prediction-score').text((modelPrediction || 0).toFixed(2));
-            $('#counterfactual-score').text((modelPrediction || 0).toFixed(2));
-            
+            const container = $('#counterfactual-container'); 
+            container.empty();
+
             featuresToShow.forEach(feature => {
                 const originalValue = schoolDetails[feature] || 0;
+                const valueToDisplay = currentSimulatedValues[feature] !== undefined ? 
+                                       currentSimulatedValues[feature] : originalValue;
                 const isBinary = originalValue === 0 || originalValue === 1;
+                
+                // MARCADOR LARANJA (REFERÊNCIA DO VIZINHO)
                 let comparisonMarkerHtml = '';
                 if (comparisonSchoolDetails) {
                     const comparisonValue = comparisonSchoolDetails[feature] || 0;
-                    comparisonMarkerHtml = `<div class="slider-marker bg-orange-500" style="left: calc(${(comparisonValue * 100)}% - 2px);"></div>`;
+                    comparisonMarkerHtml = `<div class="slider-marker" style="background-color: var(--cor-bench); left: calc(${(comparisonValue * 100)}% - 2px); opacity: 0.8; z-index: 20;"></div>`;
                 }
-                const control = `<div class="p-3 border rounded-lg"><label class="block text-sm font-medium text-gray-700">${feature.replace(/_/g, ' ')}</label><div class="flex items-center mt-2"><div class="relative w-full mr-4 h-5 flex items-center">${comparisonMarkerHtml}<div class="slider-marker bg-blue-500" style="left: calc(${(originalValue * 100)}% - 2px);"></div><input type="range" data-feature="${feature}" min="0" ${isBinary ? 'max="1" step="1"' : 'max="1" step="0.01"'} value="${originalValue}" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer relative z-10"></div><span id="value-${feature}" class="font-semibold w-12 text-right">${isBinary ? originalValue : (originalValue * 100).toFixed(0) + '%'}</span></div></div>`;
+
+                // MARCADOR VERDE (SUA ESCOLA ATUAL)
+                const originalMarkerHtml = `<div class="slider-marker" style="background-color: var(--cor-foco); left: calc(${(originalValue * 100)}% - 2px); z-index: 21;"></div>`;
+
+                const control = `
+                    <div class="p-3 border rounded-lg bg-white">
+                        <label class="block label-variable mb-2">
+                            ${formatLabel(feature)}
+                        </label>
+                        <div class="flex items-center">
+                            <div class="relative w-full mr-4 h-5 flex items-center">
+                                ${comparisonMarkerHtml}
+                                ${originalMarkerHtml}
+                                <input type="range" data-feature="${feature}" min="0" ${isBinary ? 'max="1" step="1"' : 'max="1" step="0.01"'} value="${valueToDisplay}"
+                                class="w-full h-1.5 bg-gray-100 rounded-lg appearance-none cursor-pointer relative z-10 accent-[var(--cor-foco)]">
+                            </div>
+                            <span id="value-${feature}" class="font-mono font-bold text-xs w-10 text-right">
+                                ${isBinary ? (valueToDisplay === 1 ? 'Sim' : 'Não') : (valueToDisplay * 100).toFixed(0) + '%'}
+                            </span>
+                        </div>
+                    </div>`;
                 container.append(control);
             });
+            
             container.find('input[type="range"]').on('input', handleCounterfactualChange);
         }
 
@@ -399,131 +746,390 @@
         }
 
         function switchToSchoolView() {
-            $('#summary-container').hide();
-            $('#initial-view-header').hide();
-            $('#dashboard-container').removeClass('hidden');
-            $('#school-view-header').removeClass('hidden');
+            if (!selectedSchoolId || !schoolDetails) {
+                $('#school-select').select2('open');
+                return;
+            }
+
+            $('#summary-view').fadeOut(200, function() {
+                $('#dashboard-view').removeClass('hidden').css('display', 'flex').fadeIn(300);
+                
+                // Ajusta o Dock
+                $('#dock-selector-container').addClass('hidden');
+                $('#compared-school-card-content').removeClass('hidden');
+                $('#dynamic-middle-card').removeClass('border-gray-200').addClass('border-[var(--cor-bench)]');
+                updateDockNav(true);
+
+                // Se já houver comparação, restaura. Se não, mostra o padrão.
+                if (comparisonSchoolDetails) {
+                    renderComparedSchoolCard(comparisonSchoolDetails);
+                    renderSchoolDetails(schoolDetails, true);
+                } else {
+                    renderSchoolDetails(schoolDetails, false);
+                    renderShapCard(currentShapData, false);
+                    renderCounterfactualControls(topGainFeatures);
+                }
+            });
         }
 
-        // --- Garantir que o gráfico global recarregue ---
         function switchToSummaryView() {
-            $('#summary-container').show();
-            $('#initial-view-header').show();
-            $('#dashboard-container').addClass('hidden');
-            $('#school-view-header').addClass('hidden');
-            $('#school-select').val(null).trigger('change');
-            loadSummaryData(); // <-- ADICIONADA ESTA LINHA para recarregar o gráfico
+            $('#dashboard-view').fadeOut(200, function() {
+                $('#summary-view').fadeIn(300);
+                
+                // Ajusta o Dock de volta para o Seletor
+                $('#compared-school-card-content').addClass('hidden');
+                $('#dock-selector-container').removeClass('hidden');
+                $('#dynamic-middle-card').removeClass('border-[var(--cor-bench)]').addClass('border-gray-200');
+
+                updateDockNav(false);
+
+                // IMPORTANTE: NÃO definimos comparisonSchoolDetails = null aqui.
+                // Queremos que o sistema lembre do vizinho se voltarmos.
+
+                if (schoolDetails && currentShapData) {
+                    renderSchoolDetails(schoolDetails, false);
+                    renderShapCard(currentShapData, false);
+                }
+
+                const currentId = $('#school-select').val();
+                if (currentId) {
+                    setTimeout(() => highlightSchoolInSwarm(currentId), 100);
+                }
+            });
+        }
+
+        function updateDockNav(isInsideSchool) {
+            const icon = $('#nav-icon');
+            const textTop = $('#nav-text-top');
+            const textMain = $('#nav-text-main');
+
+            if (isInsideSchool) {
+                icon.html('<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>');
+                textTop.text('Voltar para');
+                textMain.text('Visão Global');
+            } else {
+                icon.html('<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>');
+                textTop.text('Ir Para');
+                textMain.text('Comparação');
+            }
+        }
+
+        function handleDockNavClick() {
+            if ($('#dashboard-view').is(':visible')) {
+                switchToSummaryView();
+            } else {
+                if (selectedSchoolId) switchToSchoolView();
+                else $('#school-select').select2('open');
+            }
+        }
+
+        function resetDockPlaceholders() {
+            $('#compared-school-card-container')
+                .removeClass('border-[#8c510a]')
+                .addClass('border-gray-200')
+                .html('<div class="flex items-center justify-center h-full text-gray-400 text-[10px] uppercase font-bold text-center">Aguardando seleção de Referência de Benchmarking para comparar</div>');
+            comparisonSchoolDetails = null;
         }
 
         async function handleSchoolSelect() {
-            selectedSchoolId = $('#school-select').val(); if (!selectedSchoolId) return;
+            selectedSchoolId = $('#school-select').val(); 
+            if (!selectedSchoolId) return;
+
+            currentSimulatedValues = {};
             comparisonSchoolDetails = null; 
-            $('#comparison-score-container').addClass('hidden');
-            $('#find-hypothetical-button').prop('disabled', true);
-            if(shapChartInstance) shapChartInstance.destroy();
-            
+            $('#compared-school-card-content').html(`
+                <div class="flex items-center justify-center h-full text-gray-400 text-[10px] uppercase font-bold text-center px-4">
+                    Selecione uma Referência de Benchmarking para comparar
+                </div>
+            `);
+
             try {
+                // Mostra loaders se necessário
+                $('#hypothetical-similar-schools-list').html('<div class="loader mx-auto"></div>');
+                
                 const [dashResponse, gainResponse] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/escola_dashboard/${selectedSchoolId}`),
                     fetch(`${API_BASE_URL}/api/ganho_features/${selectedSchoolId}`)
                 ]);
+                
                 const dashData = await dashResponse.json();
                 const gainData = await gainResponse.json();
+
+                currentShapData = dashData.dados_shap;
                 
+                // 1. ATUALIZAÇÃO GLOBAL (Essencial para as outras funções)
+                schoolDetails = dashData.detalhes_escola;
                 modelPrediction = dashData.previsao_modelo_original;
                 topGainFeatures = gainData.map(item => item.feature);
+                allNeighborSchools = [...dashData.escolas_similares]; // Vizinhos para o Benchmarking
 
-                // --- Popula a lista inicial de vizinhos ---
-                allNeighborSchools = [...dashData.escolas_similares];
+                $('#model-prediction-score').text(modelPrediction.toFixed(2));
+                $('#counterfactual-score').text(modelPrediction.toFixed(2)); // Começa igual à original
 
-                renderSchoolDetails(dashData.detalhes_escola);
-                renderShapChart(dashData.dados_shap);
-                renderSimilarSchools(dashData.escolas_similares, 'similar-schools-list');
+                renderCurrentSchoolCard(dashData.detalhes_escola);
+                $('#current-school-card-container').removeClass('hidden').fadeIn();
+
+                // 2. RENDERIZAÇÃO DA SIDEBAR (Direita)
+                renderSchoolDetails(schoolDetails, false);
+                renderShapCard(dashData.dados_shap, false);
                 
-                // --- Usa a nova função para popular o dropdown ---
+                // 3. PREPARAÇÃO DO SIMULADOR (Esquerda)
                 updateNeighborDropdown();
                 $('#neighbor-select').prop('disabled', false);
-                
                 renderCounterfactualControls(topGainFeatures);
-                $('#comparison-table-container').html('<p class="text-gray-500">Selecione um vizinho para ver a comparação detalhada.</p>');
-            } catch (error) { console.error("Erro ao carregar dados:", error); }
+                
+                // 4. BUSCA DAS ESCOLAS SIMULADAS (Centro)
+                // Chamamos explicitamente após garantir que schoolDetails e topGainFeatures existem
+                await handleFindHypotheticalSimilar();
+
+            } catch (error) { 
+                console.error("Erro crítico ao carregar dados:", error); 
+                $('#hypothetical-similar-schools-list').html('<p class="text-red-500 text-center">Erro ao carregar escolas.</p>');
+            }
+        }
+
+        $('#school-select').on('change', function() {
+            const selectedId = $(this).val();
+
+            if (selectedId) {
+                // 1. Mostra o botão "Visão Escola"
+                $('#btn-ir-escola').removeClass('hidden').fadeIn();
+                
+                // 2. Carrega automaticamente os detalhes no card da direita
+                handleSchoolSelect(); 
+                
+                // 3. Destaca a escola no gráfico de pontos (swarm)
+                highlightSchoolInSwarm(selectedId);
+            } else {
+                // Se o seletor for limpo, esconde o botão
+                $('#btn-ir-escola').addClass('hidden').fadeOut();
+            }
+        });
+
+        // Agora o botão "Visão Escola" realmente muda a tela
+        $('#btn-ir-escola').on('click', function() {
+            switchToSchoolView();
+        });
+
+        async function highlightSchoolInSwarm(schoolId) {
+            if (!globalShapChartInstance) return;
+
+            const chart = globalShapChartInstance;
+            const dataset = chart.data.datasets[0];
+            const rawData = chart.data.rawPlotData;
+            const sId = parseInt(schoolId);
+
+            // 1. Verifica se a escola existe na amostra (em qualquer uma das features)
+            const indicesExistentes = [];
+            rawData.forEach((p, i) => {
+                if (p.school_id === sId) indicesExistentes.push(i);
+            });
+
+            if (indicesExistentes.length === 0) {
+                // 2. SE NÃO EXISTE: Busca o array completo (as 15 posições)
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/shap_escola_resumo/${sId}`);
+                    const novosPontos = await response.json(); // O Python já deve retornar 15 pontos
+                    
+                    novosPontos.forEach(p => {
+                        const jitteredY = p.y + (Math.random() - 0.5) * 0.8;
+                        dataset.data.push({ x: p.x, y: jitteredY, normalized_value: p.normalized_value, school_name: p.school_name, school_id: p.school_id });
+                        rawData.push(p);
+                    });
+                } catch (e) { console.error(e); return; }
+            } else {
+                // 3. SE JÁ EXISTE: Move todos os 15 pontos para o final para ficarem na frente
+                // Fazemos de trás para frente para não bagunçar os índices ao remover
+                for (let i = indicesExistentes.length - 1; i >= 0; i--) {
+                    const idx = indicesExistentes[i];
+                    const pontoDados = dataset.data.splice(idx, 1)[0];
+                    const pontoRaw = rawData.splice(idx, 1)[0];
+                    
+                    dataset.data.push(pontoDados);
+                    rawData.push(pontoRaw);
+                }
+            }
+
+            // 4. Aplicar destaque em todos os pontos que possuem esse ID
+            dataset.pointRadius = rawData.map(p => p.school_id === sId ? 6 : 2);
+            dataset.pointBorderWidth = rawData.map(p => p.school_id === sId ? 2 : 0);
+            dataset.pointBorderColor = '#000';
+
+            chart.update('none');
         }
 
         async function handleCompareClick(neighborId) {
-            $('#neighbor-select').val(neighborId).trigger('change');
+            // 1. Feedback Visual na lista (Efeito "Rise")
+            $('.school-card-active').removeClass('school-card-active');
+            $(`#card-${neighborId}`).addClass('school-card-active');
+
+            try {
+                // 2. Busca os dados de comparação (Dashboard e SHAP Comparativo)
+                const [detailsRes, shapRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/escola_dashboard/${neighborId}`),
+                    fetch(`${API_BASE_URL}/api/comparar_shap/${selectedSchoolId}/${neighborId}`)
+                ]);
+                
+                const detailsData = await detailsRes.json();
+                const shapData = await shapRes.json();
+                
+                // 3. ATUALIZA O ESTADO GLOBAL (Crucial para os marcadores aparecerem)
+                comparisonSchoolDetails = detailsData.detalhes_escola;
+
+                // 4. RENDERIZA OS COMPONENTES
+                // Card de Comparação no Rodapé (O de 40%)
+                renderComparedSchoolCard(comparisonSchoolDetails);
+
+                // Sidebar da Direita (Modo Comparativo: true)
+                renderSchoolDetails(schoolDetails, true); 
+                renderShapCard(shapData, true);
+
+                // RE-RENDERIZA OS SLIDERS (Para os marcadores laranjas surgirem)
+                renderCounterfactualControls(topGainFeatures);
+
+                // 5. Scroll suave para o simulador
+                $('html, body').animate({
+                    scrollTop: $("#dashboard-view").offset().top - 20
+                }, 500);
+
+            } catch (e) { 
+                console.error("Erro na comparação:", e); 
+            }
         }
         
         async function handleNeighborSelect() {
-            const neighborId = $(this).val();
+            // Pega o ID tanto do select quanto do valor direto (caso venha do clique)
+            const neighborId = $('#neighbor-select').val();
+            
             if (!neighborId) {
                 comparisonSchoolDetails = null;
-                $('#comparison-score-container').addClass('hidden');
-                $('#comparison-table-container').html('<p class="text-gray-500">Selecione um vizinho para ver a comparação detalhada.</p>');
-                renderCounterfactualControls(currentTopFeatures); // Renderiza novamente sem o marcador laranja
+                $('#compared-school-card-container').addClass('hidden');
+                renderSchoolDetails(schoolDetails, false);
+                renderShapCard(currentShapData, false);
+                renderCounterfactualControls(topGainFeatures); // Limpa marcadores laranjas
                 return;
             }
+
             try {
                 const [detailsResponse, shapResponse] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/escola_dashboard/${neighborId}`),
                     fetch(`${API_BASE_URL}/api/comparar_shap/${selectedSchoolId}/${neighborId}`)
                 ]);
+                
                 const detailsData = await detailsResponse.json();
                 const shapData = await shapResponse.json();
+                
                 comparisonSchoolDetails = detailsData.detalhes_escola;
-                $('#comparison-score').text((comparisonSchoolDetails.MEDIA_FINAL || 0).toFixed(2));
-                $('#comparison-score-container').removeClass('hidden');
-                renderComparisonTable(shapData);
-                renderCounterfactualControls(currentTopFeatures); // Renderiza novamente com o marcador laranja
-            } catch (error) { console.error("Erro na comparação:", error); }
+
+                // 1. Renderiza o CARD da escola comparada na esquerda
+                renderComparedSchoolCard(comparisonSchoolDetails);
+
+                // 2. Atualiza os detalhes na sidebar (Modo Comparativo)
+                renderSchoolDetails(schoolDetails, true); 
+                renderShapCard(shapData, true);
+
+                // 3. RE-RENDERIZA OS CONTROLES: Isso fará os marcadores laranjas aparecerem!
+                renderCounterfactualControls(topGainFeatures);
+
+            } catch (error) { 
+                console.error("Erro na comparação:", error); 
+            }
         }
 
+        let simulationTimeout = null; // Controle do atraso
+        let currentSimulatedValues = {}; // Armazena os valores alterados pelo usuário
+
         async function handleCounterfactualChange() {
-            $('#find-hypothetical-button').prop('disabled', false);
+            // 1. Atualização Visual Imediata (Labels dos Sliders)
             const features = {};
             $('#counterfactual-container input[type="range"]').each(function() {
-                const slider = $(this); const featureName = slider.data('feature'); const value = parseFloat(slider.val());
-                features[featureName] = value; const valueSpan = $(`#value-${featureName}`);
-                if(slider.attr('step') === '1') { valueSpan.text(value); } else { valueSpan.text((value * 100).toFixed(0) + '%'); }
+                const slider = $(this);
+                const feat = slider.data('feature');
+                const val = parseFloat(slider.val());
+                features[feat] = val;
+                currentSimulatedValues[feat] = val;
+
+                const isBinary = slider.attr('step') === '1';
+                $(`#value-${feat}`).text(isBinary ? (val === 1 ? 'Sim' : 'Não') : (val * 100).toFixed(0) + '%');
             });
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/contrafactual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ escola_id: selectedSchoolId, features: features }) });
-                const data = await response.json();
-                $('#counterfactual-score').text(data.media_simulada.toFixed(2));
-            } catch (error) { console.error("Falha ao simular:", error); }
+
+            // 2. DEBOUNCE: Cancela a execução anterior se o usuário ainda estiver mexendo
+            clearTimeout(simulationTimeout);
+
+            // 3. AGUARDA 400ms após o último movimento para disparar a IA
+            simulationTimeout = setTimeout(async () => {
+                try {
+                    // Feedback visual de "carregando"
+                    $('#counterfactual-score').addClass('opacity-50');
+
+                    const response = await fetch(`${API_BASE_URL}/api/contrafactual`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ escola_id: selectedSchoolId, features: features })
+                    });
+                    const data = await response.json();
+                    
+                    // ATUALIZAÇÃO DA NOVA PREDIÇÃO
+                    if (data.media_simulada !== undefined) {
+                        $('#counterfactual-score')
+                            .text(data.media_simulada.toFixed(2))
+                            .removeClass('opacity-50 var(--cor-foco)')
+                            .addClass('text-white var(--cor-foco) px-2 rounded') // Destaque na mudança
+                            .delay(300)
+                            .queue(function(next) {
+                                $(this).removeClass('var(--cor-foco) text-white').addClass('var(--cor-foco)').removeClass('px-2 rounded');
+                                next();
+                            });
+                    }
+                    
+                    // Atualiza as escolas similares também com o atraso
+                    handleFindHypotheticalSimilar();
+
+                } catch (e) { 
+                    console.error("Erro na simulação:", e); 
+                }
+            }, 400); // 400 milissegundos de espera
         }
         
         async function handleFindHypotheticalSimilar() {
-            $('#hypothetical-similar-schools-container').removeClass('hidden');
-            $('#hypothetical-similar-schools-list').html('<div class="loader mx-auto"></div>');
-            const simulatedFeaturesVector = { ...schoolDetails };
+            const listContainer = $('#hypothetical-similar-schools-list');
+            
+            // Se ainda não carregou os detalhes da escola principal, aborta
+            if (!schoolDetails || !currentTopFeatures.length) return;
+
+            // Monta o vetor de características baseado nos SLIDERS
+            const simulatedVector = { ...schoolDetails };
             $('#counterfactual-container input[type="range"]').each(function() {
-                simulatedFeaturesVector[$(this).data('feature')] = parseFloat($(this).val());
+                const feat = $(this).data('feature');
+                const val = parseFloat($(this).val());
+                simulatedVector[feat] = val;
             });
+
             try {
                 const response = await fetch(`${API_BASE_URL}/api/encontrar_escolas_simuladas`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ features: simulatedFeaturesVector, context_features: currentTopFeatures })
+                    body: JSON.stringify({ 
+                        features: simulatedVector, 
+                        context_features: currentTopFeatures 
+                    })
                 });
                 const data = await response.json();
-                renderSimilarSchools(data, 'hypothetical-similar-schools-list');
                 
-                // --- Adiciona novas escolas à lista global e atualiza o dropdown ---
-                const existingIds = new Set(allNeighborSchools.map(s => s.ID_ESCOLA));
-                data.forEach(newSchool => {
-                    if (!existingIds.has(newSchool.ID_ESCOLA)) {
-                        allNeighborSchools.push(newSchool);
-                    }
-                });
-                updateNeighborDropdown();
+                // Usa a função de renderização padrão para preencher a lista
+                renderSimilarSchools(data, 'hypothetical-similar-schools-list');
 
-            } catch (error) { console.error("Erro ao buscar escolas:", error); }
+            } catch (error) { 
+                console.error("Erro ao buscar escolas do perfil simulado:", error);
+            }
         }
         
         $(document).ready(function() {
             // Inicializa a lista de escolas para o seletor
             (async function init() {
                 try {
+                    await carregarDicionario();
+
                     const response = await fetch(`${API_BASE_URL}/api/escolas`);
                     const escolas = await response.json();
                     const select = $('#school-select');
@@ -537,21 +1143,36 @@
             loadSummaryData();
             switchToSummaryView();
 
-            // --- LISTENERS DE EVENTOS ---
-            $('#school-select').on('change', function() {
-                if ($(this).val()) {
-                    switchToSchoolView();
-                    handleSchoolSelect();
+            $('#select-school-btn').on('click', function() {
+                selectedSchoolId = $('#school-select').val();
+                if (selectedSchoolId) {
+                    switchToSchoolView(); // ATIVA A TELA SECUNDÁRIA
+                    handleSchoolSelect(); // BUSCA OS DADOS
+                } else {
+                    $('#school-select').select2('open');
                 }
             });
-            
-            $('#select-school-btn').on('click', function() {
-                $('#initial-view-header').hide();
-                $('#school-view-header').removeClass('hidden');
-                $('#school-select').select2('open');
-            });
-            
+
             $('#back-to-summary-btn').on('click', switchToSummaryView);
+
+            function switchToSummaryView() {
+                $('#dashboard-view').fadeOut(200, function() {
+                    $('#summary-view').fadeIn(300);
+                    
+                    // Limpa o estado de comparação
+                    $('#compared-school-card-container').addClass('hidden').empty();
+                    comparisonSchoolDetails = null;
+
+                    const currentId = $('#school-select').val();
+                    if (currentId) {
+                        setTimeout(() => highlightSchoolInSwarm(currentId), 100);
+                    }
+                });
+            }
+            
+            $(document).on('click', '#back-to-summary-btn', function() {
+                switchToSummaryView();
+            });
 
             $('#neighbor-select').on('change', handleNeighborSelect);
             $('#find-hypothetical-button').on('click', handleFindHypotheticalSimilar);
@@ -560,6 +1181,15 @@
             // mas as mantenho caso adicione mais tarde.
             $('#show-school-analysis-btn').on('click', showSchoolSpecificView);
             $('#back-to-general-view-btn').on('click', showGeneralView);
+
+            // Coloque aqui o ajuste de cor do texto de "Oportunidades"
+            $('.text-green-600').filter(function() { 
+                return $(this).text().includes("Maiores Oportunidades"); 
+            }).css('color', COR_AZUL).removeClass('text-green-600');
+
+            // Aproveite para ajustar a legenda de "Cor Vermelha" e "Cor Azul" que está no HTML
+            $('.text-red-500').css('color', COR_VERMELHA).removeClass('text-red-500');
+            $('.text-blue-500').css('color', COR_AZUL).removeClass('text-blue-500');
         });
     </script>
 </body>

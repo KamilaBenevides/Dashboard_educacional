@@ -1,0 +1,15 @@
+[project]
+name = "dashboard-educacional"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.9.*"
+dependencies = [
+    "numpy==2.0.2",
+    "flask==3.1.1",
+    "flask-cors==6.0.1",
+    "joblib==1.4.2",
+    "pandas==2.2.3",
+    "shap==0.46.0",
+    "xgboost==2.1.2",
+]

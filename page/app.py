@@ -1,17 +1,20 @@
 # --- 1. Importações ---
+from click.decorators import T
 import pandas as pd
 import joblib
 import shap
 import xgboost
 import math
 import numpy as np
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from similarity_calculator import SimilarityFinder
 
 print("Iniciando o servidor e carregando os recursos...")
 app = Flask(__name__)
 CORS(app)
+
+TOP_FEATURES_CACHE = []
 
 def clean_nans(data_dict):
     for key, value in data_dict.items():
@@ -22,7 +25,7 @@ try:
     model = joblib.load('../modelo_xgboost.pkl')
     explainer = joblib.load('../shap_explainer.pkl')
     df_features = pd.read_csv('../dataset_reduzido_renomeadas2.csv')
-    df_info = pd.read_csv('../../escolas_com_cep.csv')
+    df_info = pd.read_csv('../escolas_com_cep.csv')
     df_sim_dif_notas = pd.read_csv('../escola_similar_notas_diferentes.csv')
     df_sim_mesma_nota = pd.read_csv('../escola_diferentes_notas_similar.csv')
     
@@ -36,25 +39,52 @@ try:
     df_para_similaridade = df_master[~df_master['ID_ESCOLA'].isin(escolas_ids_a_remover)]
     similarity_finder = SimilarityFinder(df_para_similaridade, FEATURES)
 
+    df_labels = pd.read_csv('../exibicao_variaveis2.csv', header=None)
+    # Cria um dicionário: {'NOME_ORIGINAL': 'Nome de Exibição'}
+    dict_labels = dict(zip(df_labels.iloc[:, 0], df_labels.iloc[:, 1]))
+
     print("Pré-calculando todos os valores SHAP para otimização...")
     df_master_features = df_master.set_index('ID_ESCOLA')[FEATURES].fillna(0)
     all_shap_values = explainer(df_master_features)
     df_shap_values = pd.DataFrame(all_shap_values.values, columns=FEATURES, index=df_master_features.index)
-    
+
     print("Todos os recursos foram carregados. Servidor pronto!")
 except Exception as e:
     print(f"Ocorreu um erro durante a inicialização: {e}")
     exit()
 
+@app.route('/api/labels_traducao', methods=['GET'])
+def get_labels_traducao():
+    # Retorna o dicionário completo do seu exibicao_variaveis.csv
+    return jsonify(dict_labels)
+
+def get_clean_label(feature_name):
+    return dict_labels.get(feature_name, feature_name)
+
+@app.route('/api/escola_detalhes/<int:escola_id>')
+def get_detalhes(escola_id):
+    results = []
+    for feature in dict_labels:
+        results.append({
+            "feature": feature,
+            "feature_display": get_clean_label(feature), # NOME LIMPO AQUI
+            "valor": df_shap_values.loc[escola_id, feature]
+        })
+    return jsonify(results)
+
 # --- ENDPOINT DO GRÁFICO GERAL ---
 @app.route('/api/shap_summary', methods=['GET'])
 def get_shap_summary():
+    print(f"DEBUG: Primeiras colunas do SHAP: {df_shap_values.columns[:5].tolist()}")
     try:
         N_FEATURES = 15
         N_SAMPLES = 500 # Amostra para não sobrecarregar o navegador
 
         mean_abs_shap = df_shap_values.abs().mean().sort_values(ascending=False)
         top_features = mean_abs_shap.head(N_FEATURES).index.tolist()
+
+        global TOP_FEATURES_CACHE
+        TOP_FEATURES_CACHE = top_features
 
         plot_data = []
         
@@ -93,13 +123,13 @@ def get_shap_summary():
                     "x": shap_val,
                     "y": i, 
                     "normalized_value": norm_val,
-                    "school_name": school_name
+                    "school_name": school_name,
+                    "school_id": int(school_id)
                 })
-
 
         return jsonify({
             "features": top_features,
-            "plot_data": plot_data
+            "plot_data": plot_data,
         })
     except Exception as e:
         print(f"Erro em get_shap_summary: {e}")
@@ -185,6 +215,51 @@ def get_ganho_features(escola_id):
     resultado = [{"feature": index, "ganho": value} for index, value in ganho_ordenado.items()]
     
     return jsonify(resultado)
+
+@app.route('/')
+def index():
+    # Serve o arquivo index.html que está na mesma pasta
+    return send_from_directory('.', 'index.html')
+
+@app.route('/api/shap_escola_resumo/<int:escola_id>', methods=['GET'])
+def get_shap_escola_resumo(escola_id):
+    try:
+        if not TOP_FEATURES_CACHE:
+            # Caso o usuário acesse direto sem carregar o resumo antes
+            mean_abs_shap = df_shap_values.abs().mean().sort_values(ascending=False)
+            top_f = mean_abs_shap.head(15).index.tolist()
+        else:
+            top_f = TOP_FEATURES_CACHE
+
+        shap_vals = df_shap_values.loc[escola_id]
+        # Pegamos os valores originais para a normalização (opcional, mas bom para as cores)
+        features_vals = df_master_features.loc[escola_id]
+        
+        school_name = df_master.set_index('ID_ESCOLA').loc[escola_id, 'NO_ENTIDADE']
+
+        resumo_ponto = []
+        # Importante: Inverter a lista para bater com a ordem do gráfico (Y de baixo para cima)
+        top_f_reversed = list(top_f)
+        top_f_reversed.reverse()
+
+        for i, feature in enumerate(top_f_reversed):
+            # Lógica de normalização para a cor (0 a 1)
+            f_min = df_master_features[feature].min()
+            f_max = df_master_features[feature].max()
+            norm_val = (features_vals[feature] - f_min) / (f_max - f_min) if f_max > f_min else 0
+
+            resumo_ponto.append({
+                "x": float(shap_vals[feature]),
+                "y": i,
+                "school_id": int(escola_id),
+                "school_name": str(school_name),
+                "normalized_value": float(norm_val)
+            })
+            
+        return jsonify(resumo_ponto)
+    except Exception as e:
+        print(f"Erro ao buscar ponto individual: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
