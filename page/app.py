@@ -26,18 +26,13 @@ try:
     explainer = joblib.load('../shap_explainer.pkl')
     df_features = pd.read_csv('../dataset_reduzido_renomeadas2.csv')
     df_info = pd.read_csv('../escolas_com_cep.csv')
-    df_sim_dif_notas = pd.read_csv('../escola_similar_notas_diferentes.csv')
-    df_sim_mesma_nota = pd.read_csv('../escola_diferentes_notas_similar.csv')
-    
-    df_similaridade_total = pd.concat([df_sim_dif_notas, df_sim_mesma_nota])
-
     df_master = pd.merge(df_info, df_features, on='ID_ESCOLA', how='inner')
     
     FEATURES = model.get_booster().feature_names
 
-    escolas_ids_a_remover = [26035553, 29387019, 31000311, 43040918, 21243875, 26027836, 13001345, 21315604]
-    df_para_similaridade = df_master[~df_master['ID_ESCOLA'].isin(escolas_ids_a_remover)]
-    similarity_finder = SimilarityFinder(df_para_similaridade, FEATURES)
+    #escolas_ids_a_remover = [26035553, 29387019, 31000311, 43040918, 21243875, 26027836, 13001345, 21315604]
+    #df_master = df_master[~df_master['ID_ESCOLA'].isin(escolas_ids_a_remover)]
+    similarity_finder = SimilarityFinder(df_master, FEATURES)
 
     df_labels = pd.read_csv('../exibicao_variaveis2.csv', header=None)
     # Cria um dicionário: {'NOME_ORIGINAL': 'Nome de Exibição'}
@@ -48,7 +43,21 @@ try:
     all_shap_values = explainer(df_master_features)
     df_shap_values = pd.DataFrame(all_shap_values.values, columns=FEATURES, index=df_master_features.index)
 
+
+    print("Pré-calculando todas as predições para busca de custo-benefício...")
+    # Pre-calculate predictions for all schools once at startup to speed up cost-benefit searches
+    all_predictions_array: np.ndarray = model.predict(df_master[FEATURES].fillna(0))
+    series_todas_predicoes: pd.Series = pd.Series(all_predictions_array, index=df_master.index)
+
     print("Todos os recursos foram carregados. Servidor pronto!")
+
+    idx_master = set(df_master.index)
+    idx_similarity = set(similarity_finder.all_schools_features.index)
+
+    escolas_em_falta = idx_master - idx_similarity
+    print(f"Total no df_master (app.py): {len(idx_master)}")
+    print(f"Total no SimilarityFinder: {len(idx_similarity)}")
+    print(f"IDs das escolas descartadas: {escolas_em_falta}")
 except Exception as e:
     print(f"Ocorreu um erro durante a inicialização: {e}")
     exit()
@@ -148,6 +157,9 @@ def get_escola_dashboard(escola_id):
     escola_features = escola_data[FEATURES].fillna(0)
     predicao_original = model.predict(escola_features)[0]
     
+    # Captura a performance REAL da escola consultada
+    performance_real_original = float(escola_data['MEDIA_FINAL'].iloc[0])
+    
     shap_values_series = df_shap_values.loc[escola_id]
     
     shap_data_formatted = []
@@ -157,14 +169,24 @@ def get_escola_dashboard(escola_id):
     
     shap_data_formatted.sort(key=lambda x: x['shap_value'], reverse=False)
     
-    similares_ids = df_similaridade_total[df_similaridade_total['ID_i'] == escola_id]['ID_j'].unique().tolist()
+    # Isola a série de características (vetor original) indexada pelo nome das colunas
+    vetor_original_series = escola_features.iloc[0]
     
-    escolas_similares_data = df_master[df_master['ID_ESCOLA'].isin(similares_ids)].head(8) 
+    # Cria uma série contendo a performance REAL de todas as escolas indexadas pelo ID_ESCOLA
+    series_performance_real_todas = df_master['MEDIA_FINAL']
+    
+    # Busca os vizinhos com base no custo-benefício dos valores reais
+    escolas_similares_data = similarity_finder.find_best_cost_benefit_neighbors(
+        original_vector=vetor_original_series,
+        real_performance_series=series_performance_real_todas,
+        original_real_performance=performance_real_original,
+        n_results=10
+    )
     
     response = {
         "detalhes_escola": clean_nans(escola_data.to_dict('records')[0]),
         "dados_shap": shap_data_formatted,
-        "escolas_similares": [clean_nans(s) for s in escolas_similares_data.to_dict('records')],
+        "escolas_similares": [clean_nans(s) for s in escolas_similares_data],
         "previsao_modelo_original": float(predicao_original)
     }
     return jsonify(response)
@@ -194,9 +216,24 @@ def simular_contrafactual():
 def encontrar_escolas_simuladas():
     data = request.json
     simulated_vector = data['features']
-    context_features = data.get('context_features')
-    similar_schools = similarity_finder.find_similar_to_vector(simulated_vector, n_results=5, context_features=context_features)
-    return jsonify([clean_nans(s) for s in similar_schools])
+    
+    # Converte a lista recebida do front-end em uma pd.Series para o similarity_calculator
+    # usando as mesmas colunas das features de treino/todas as escolas
+    vetor_simulado_series = pd.Series(simulated_vector, index=similarity_finder.all_schools_features.columns)
+
+    df_predict = pd.DataFrame([vetor_simulado_series])
+    performance_predita_simulada = float(model.predict(df_predict)[0])
+    
+    
+    # Executa a busca baseada no melhor custo-benefício
+    escolas_similares_data = similarity_finder.find_best_cost_benefit_neighbors(
+        original_vector=vetor_simulado_series,
+        real_performance_series=df_master['MEDIA_FINAL'],
+        original_real_performance=performance_predita_simulada, # Como é simulação, não há performance original fixa de uma escola real
+        n_results=10 # Ajuste a quantidade que desejar retornar aqui
+    )
+    
+    return jsonify([clean_nans(s) for s in escolas_similares_data])
 
 @app.route('/api/ganho_features/<int:escola_id>', methods=['GET'])
 def get_ganho_features(escola_id):
@@ -262,5 +299,5 @@ def get_shap_escola_resumo(escola_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, use_reloader=False)
 
